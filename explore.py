@@ -2,53 +2,63 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import yfinance as yf
 
-data = yf.download(["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "JPM", "XOM", "JNJ", "PG", "NVDA"], start="2020-01-01", end="2024-01-01")
-momentum = data["Close"].pct_change(periods=126)
-monthly_momentum = momentum.resample("ME").last()
+def main():
+    LOOKBACK_DAYS = 126
+    TOP_N = 3
+    COST_RATE = 0.001
 
-# Rank 1 = highest momentum. Using ascending=False since pandas' default ranks smallest values as 1.
-ranks = monthly_momentum.rank(axis=1, ascending=False)
-#print(ranks.head(10))
+    data = fetch_price_data(["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "JPM", "XOM", "JNJ", "PG", "NVDA"], start="2020-01-01", end="2024-01-01")
+    monthly_momentum = compute_momentum(data, LOOKBACK_DAYS)
+    tradeable_selected = select_top_stocks(monthly_momentum, TOP_N)
+    cumulative_returns, net_cumulative_returns = simulate_portfolio(data, tradeable_selected, COST_RATE, TOP_N)
 
-# Deciding which stocks to hold
-selected = ranks <= 3
-#print(selected.head(10))
+    plt.plot(cumulative_returns, label="Gross returns")
+    plt.plot(net_cumulative_returns, label="Net returns (after costs)")
+    plt.legend()
+    plt.show()
 
-# Eliminating lookahead bias
-tradeable_selected = selected.shift(1).fillna(False)
-#print(tradeable_selected.head(10))
 
-# Portfolio simulation
-monthly_prices = data["Close"].resample("ME").last()
-monthly_returns = monthly_prices.pct_change()
-#print(monthly_returns.head(10))
+def fetch_price_data(tickers, start, end):
+    return yf.download(tickers, start=start, end=end)
 
-# averaging the returns of stocks that we are holding (gross return - doesn't factor in transaction cost)
-portfolio_returns = monthly_returns.where(tradeable_selected).mean(axis=1)
-#print(portfolio_returns.head(10))
+def compute_momentum(data, lookback_days):
+    # returning the monthly resampled momentum
+    momentum = data["Close"].pct_change(periods=lookback_days)
+    monthly_momentum = momentum.resample("ME").last()
+    return monthly_momentum
+    
+def select_top_stocks(monthly_momentum, top_n):
+    # Rank 1 = highest momentum. Using ascending=False since pandas' default ranks smallest values as 1.
+    ranks = monthly_momentum.rank(axis=1, ascending=False)
+    selected = ranks <= top_n
+    tradeable_selected = selected.shift(1).fillna(False) # Eliminating lookahead bias
+    return tradeable_selected
 
-# cumalative returns
-cumulative_returns = (1 + portfolio_returns).cumprod()
-#print(cumulative_returns.head(15))
+def simulate_portfolio(data, tradeable_selected, cost_rate, top_n):
+    monthly_prices = data["Close"].resample("ME").last()
+    portfolio_returns = compute_portfolio_returns(monthly_prices, tradeable_selected)
+    transaction_costs = compute_transaction_costs(tradeable_selected, cost_rate, top_n)
 
-# to detect stocks that were just bought or sold
-previous_holdings = tradeable_selected.shift(1).fillna(False)
-bought = tradeable_selected & ~previous_holdings # previous holdings - False & current holdings - True
-sold = ~tradeable_selected & previous_holdings # previous holdings - True & current holdings - False
+    cumulative_returns = (1 + portfolio_returns).cumprod()
+    net_portfolio_returns = portfolio_returns - transaction_costs
+    net_cumulative_returns = (1 + net_portfolio_returns).cumprod()
 
-# deduct total transaction cost 
-num_trades = bought.sum(axis=1) + sold.sum(axis=1)
-cost_rate = 0.001
-position_size_fraction = 1/3
-transaction_costs = num_trades * cost_rate * position_size_fraction
+    return cumulative_returns, net_cumulative_returns
+     
+def compute_portfolio_returns(monthly_prices, tradeable_selected):
+    monthly_returns = monthly_prices.pct_change()
+    return monthly_returns.where(tradeable_selected).mean(axis=1)
 
-# net return and cumalative returns
-net_portfoilio_returns = portfolio_returns - transaction_costs
-net_cumulative_returns = (1 + net_portfoilio_returns).cumprod()
-print(cumulative_returns[20:25])
-print(net_cumulative_returns[20:25])
+def compute_transaction_costs(tradeable_selected, cost_rate, top_n):
+    bought, sold = detect_trades(tradeable_selected)
+    num_trades = bought.sum(axis=1) + sold.sum(axis=1)
+    position_size_fraction = 1/top_n
+    return num_trades * cost_rate * position_size_fraction
 
-plt.plot(cumulative_returns, label="Gross returns")
-plt.plot(net_cumulative_returns, label="Net returns (after costs)")
-plt.legend()
-plt.show()
+def detect_trades(tradeable_selected):
+    previous_holdings= tradeable_selected.shift(1).fillna(False)
+    bought = tradeable_selected & ~previous_holdings
+    sold = ~tradeable_selected & previous_holdings
+    return bought, sold
+
+main()
