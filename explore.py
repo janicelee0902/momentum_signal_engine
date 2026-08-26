@@ -25,6 +25,11 @@ def main():
     print(f"2022: {period2.iloc[-1]}")
     print(f"2023-2024: {period3.iloc[-1]}")
 
+    sharpe = compute_sharpe_ratio(net_portfolio_returns)
+    print(f"Sharpe ratio: {sharpe}")
+
+    max_drawdown = compute_max_drawdown(net_cumulative_returns)
+    print(f"Maximum Drawdown: {max_drawdown}")
 
 def fetch_price_data(tickers, start, end):
     return yf.download(tickers, start=start, end=end)
@@ -72,5 +77,15 @@ def detect_trades(tradeable_selected):
 def evaluate_period(returns, start_date, end_date):
     # computes cumulative returns of specific period
     return (1 + returns[start_date : end_date]).cumprod()
+
+def compute_sharpe_ratio(returns, risk_free_rate=0):
+    annualised_return = returns.mean() * 12
+    annualised_std = returns.std() * (12 ** 0.5)
+    return (annualised_return - risk_free_rate) / annualised_std
+
+def compute_max_drawdown(cumulative_returns):
+    running_peak = cumulative_returns.cummax()
+    drawdown = (cumulative_returns - running_peak) / running_peak
+    return drawdown.min()
 
 main()
