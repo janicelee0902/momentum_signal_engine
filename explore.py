@@ -44,7 +44,7 @@ def select_top_stocks(monthly_momentum, top_n):
     # Rank 1 = highest momentum. Using ascending=False since pandas' default ranks smallest values as 1.
     ranks = monthly_momentum.rank(axis=1, ascending=False)
     selected = ranks <= top_n
-    tradeable_selected = selected.shift(1).fillna(False) # Eliminating lookahead bias
+    tradeable_selected = selected.shift(1).fillna(False).astype(bool) # Eliminating lookahead bias
     return tradeable_selected
 
 def simulate_portfolio(data, tradeable_selected, cost_rate, top_n):
@@ -69,7 +69,7 @@ def compute_transaction_costs(tradeable_selected, cost_rate, top_n):
     return num_trades * cost_rate * position_size_fraction
 
 def detect_trades(tradeable_selected):
-    previous_holdings= tradeable_selected.shift(1).fillna(False)
+    previous_holdings= tradeable_selected.shift(1).fillna(False).astype(bool)
     bought = tradeable_selected & ~previous_holdings
     sold = ~tradeable_selected & previous_holdings
     return bought, sold
