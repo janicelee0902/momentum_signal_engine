@@ -59,7 +59,7 @@ The equity curve (gross vs net) is shown below:
 ## How to Run It
 
 1. Clone the repository:
-   `git clone https://github.com/janicelee0902/momentum_signal_engine.git`
+   `git clone https://github.com/janicejclee/momentum_signal_engine.git`
 2. Create and activate a virtual environment:
    `python -m venv venv`
    `source venv/Scripts/activate` (Windows) or `source venv/bin/activate` (Mac/Linux)
